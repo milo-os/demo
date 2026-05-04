@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cloud-portal
+spec:
+  replicas: 1
+  template:
+    spec:
+      containers:
+        - name: cloud-portal
+          env:
+            - name: OTEL_LOG_LEVEL
+              value: 'info'
+            - name: OTEL_ENABLED
+              value: 'false'
+            - name: API_URL
+              value: https://cloud.localhost:30443
+            - name: APP_URL
+              value: https://cloud.localhost:30443
+            - name: TELEMETRY_URL
+              value: ''
+            - name: PROMETHEUS_URL
+              value: ''
+            - name: SENTRY_DSN
+              value: ''
