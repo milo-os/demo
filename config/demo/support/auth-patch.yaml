@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: support-apiserver
+spec:
+  template:
+    spec:
+      containers:
+        - name: apiserver
+          env:
+            - name: AUTHENTICATION_KUBECONFIG
+              value: /etc/milo/kubeconfig
+            - name: AUTHORIZATION_KUBECONFIG
+              value: /etc/milo/kubeconfig
+          volumeMounts:
+            - name: milo-kubeconfig
+              mountPath: /etc/milo
+              readOnly: true
+      volumes:
+        - name: milo-kubeconfig
+          secret:
+            secretName: milo-kubeconfig
