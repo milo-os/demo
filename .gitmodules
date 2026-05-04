@@ -1,0 +1,16 @@
+[submodule "submodules/incidents"]
+	path = submodules/incidents
+	url = https://github.com/datum-labs/incidents
+	branch = demo/milo-demo
+[submodule "submodules/support"]
+	path = submodules/support
+	url = https://github.com/datum-labs/support
+	branch = demo/milo-demo
+[submodule "submodules/staff-portal"]
+	path = submodules/staff-portal
+	url = https://github.com/datum-cloud/staff-portal
+	branch = main
+[submodule "submodules/cloud-portal"]
+	path = submodules/cloud-portal
+	url = https://github.com/datum-cloud/cloud-portal
+	branch = main

@@ -1,0 +1,113 @@
+version: '3'
+
+vars:
+  CLUSTER_NAME: milo-demo
+  MILO_DIR: "{{.TASKFILE_DIR}}/.milo"
+  KUBECONFIG_FILE: .test-infra/kubeconfig
+
+env:
+  KUBECONFIG: "{{.TASKFILE_DIR}}/{{.KUBECONFIG_FILE}}"
+
+tasks:
+  demo:up:
+    desc: Boot the full milo-demo stack
+    cmds:
+      - task: demo:cluster-up
+      - task: demo:install-infra
+      - task: demo:deploy-milo
+      - task: demo:deploy-auth
+      - task: demo:build-images
+      - task: demo:load-images
+      - task: demo:deploy
+      - task: demo:seed
+      - task: demo:verify
+
+  demo:down:
+    desc: Destroy the demo cluster
+    cmds:
+      - kind delete cluster --name {{.CLUSTER_NAME}}
+      - rm -rf {{.MILO_DIR}}
+
+  demo:cluster-up:
+    desc: Create the kind cluster
+    cmds:
+      - kind create cluster --name {{.CLUSTER_NAME}} --config hack/kind-config.yaml
+      - mkdir -p .test-infra
+      - kind get kubeconfig --name {{.CLUSTER_NAME}} > {{.KUBECONFIG_FILE}}
+
+  demo:install-infra:
+    desc: Install cert-manager, Envoy Gateway, Flux from datum-cloud/test-infra
+    cmds:
+      - |
+        set -e
+        # Install cert-manager
+        kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.14.4/cert-manager.yaml
+        kubectl wait --for=condition=Available deployment --all -n cert-manager --timeout=120s
+
+        # Install Envoy Gateway
+        kubectl apply -f https://github.com/envoyproxy/gateway/releases/download/v1.0.1/install.yaml
+        kubectl wait --for=condition=Available deployment --all -n envoy-gateway-system --timeout=120s
+
+        echo "Infrastructure installed"
+
+  demo:deploy-milo:
+    desc: Clone and deploy Milo control plane
+    silent: true
+    cmds:
+      - |
+        set -e
+        if [ ! -d "{{.MILO_DIR}}/.git" ]; then
+          echo "Cloning Milo..."
+          git clone https://github.com/datum-cloud/milo.git "{{.MILO_DIR}}"
+        fi
+
+        cd "{{.MILO_DIR}}"
+        mkdir -p .test-infra
+        cp "{{.TASKFILE_DIR}}/{{.KUBECONFIG_FILE}}" .test-infra/kubeconfig
+
+        TASK_X_REMOTE_TASKFILES=1 task dev:build --force
+        kind load docker-image ghcr.io/datum-cloud/milo:dev --name {{.CLUSTER_NAME}}
+        TASK_X_REMOTE_TASKFILES=1 task dev:deploy
+        echo "Milo deployed"
+
+  demo:deploy-auth:
+    desc: Deploy Dex OIDC from support submodule
+    cmds:
+      - kubectl apply -k submodules/support/config/demo/auth/
+      - kubectl wait --for=condition=Available deployment/dex -n dex --timeout=120s
+      - echo "Dex deployed"
+
+  demo:build-images:
+    desc: Build all component images from submodule source
+    cmds:
+      - docker build -t ghcr.io/datum-cloud/incidents:dev ./submodules/incidents/
+      - docker build -t ghcr.io/datum-cloud/incidents-ui:dev ./submodules/incidents/ui/
+      - docker build -t ghcr.io/datum-cloud/support:dev ./submodules/support/
+
+  demo:load-images:
+    desc: Load built images into the kind cluster
+    cmds:
+      - kind load docker-image ghcr.io/datum-cloud/incidents:dev --name {{.CLUSTER_NAME}}
+      - kind load docker-image ghcr.io/datum-cloud/incidents-ui:dev --name {{.CLUSTER_NAME}}
+      - kind load docker-image ghcr.io/datum-cloud/support:dev --name {{.CLUSTER_NAME}}
+
+  demo:deploy:
+    desc: Deploy incidents and support services
+    cmds:
+      - kubectl apply -k config/demo/
+      - |
+        kubectl wait --for=condition=Available apiservice/v1alpha1.incidents.operations.miloapis.com --timeout=120s || true
+        kubectl wait --for=condition=Available apiservice/v1alpha1.support.miloapis.com --timeout=120s || true
+      - echo "Services deployed"
+
+  demo:seed:
+    desc: Seed demo data
+    cmds:
+      - bash hack/seed-incidents.sh
+      - bash hack/seed-support.sh
+
+  demo:verify:
+    desc: Run all verification checks
+    cmds:
+      - bash hack/verify-kubectl.sh
+      - cd verify && npm ci && npx playwright test
