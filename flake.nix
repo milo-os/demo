@@ -30,7 +30,6 @@
 
             # Node.js for Playwright verification (verify/ directory)
             nodejs_20
-            nodePackages.npm
 
             # Git (submodule operations)
             git
