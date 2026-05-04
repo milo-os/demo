@@ -19,6 +19,7 @@ tasks:
       - task: demo:build-images
       - task: demo:load-images
       - task: demo:deploy
+      - task: demo:deploy-portals
       - task: demo:seed
       - task: demo:verify
 
@@ -74,7 +75,7 @@ tasks:
     desc: Deploy Dex OIDC from support submodule
     cmds:
       - kubectl apply -k submodules/support/config/demo/auth/
-      - kubectl wait --for=condition=Available deployment/dex -n dex --timeout=120s
+      - kubectl wait --for=condition=Available deployment/dex -n auth-system --timeout=120s
       - echo "Dex deployed"
 
   demo:build-images:
@@ -99,6 +100,43 @@ tasks:
         kubectl wait --for=condition=Available apiservice/v1alpha1.incidents.operations.miloapis.com --timeout=120s || true
         kubectl wait --for=condition=Available apiservice/v1alpha1.support.miloapis.com --timeout=120s || true
       - echo "Services deployed"
+
+  demo:configure:
+    desc: Write portal .env files for the demo cluster
+    cmds:
+      - |
+        cat > submodules/staff-portal/.env <<'ENVEOF'
+NODE_ENV=production
+APP_URL=https://staff.localhost:30443
+API_URL=https://staff.localhost:30443
+AUTH_OIDC_ISSUER=http://dex.auth-system.svc.cluster.local:5556/oidc/v1
+AUTH_OIDC_CLIENT_ID=staff-portal
+AUTH_OIDC_CLIENT_SECRET=demo-secret
+SESSION_SECRET=demo-session-secret-milo-demo-32ch
+CLOUD_PORTAL_URL=https://cloud.localhost:30443
+OTEL_ENABLED=false
+ENVEOF
+      - |
+        cat > submodules/cloud-portal/.env <<'ENVEOF'
+NODE_ENV=production
+APP_URL=https://cloud.localhost:30443
+API_URL=https://cloud.localhost:30443
+AUTH_OIDC_ISSUER=http://dex.auth-system.svc.cluster.local:5556/oidc/v1
+AUTH_OIDC_CLIENT_ID=cloud-portal
+AUTH_OIDC_CLIENT_SECRET=demo-secret
+SESSION_SECRET=demo-session-secret-milo-demo-32ch
+OTEL_ENABLED=false
+ENVEOF
+
+  demo:deploy-portals:
+    desc: Build and deploy staff and cloud portals
+    cmds:
+      - task: demo:configure
+      - docker build -t ghcr.io/datum-cloud/staff-portal:demo ./submodules/staff-portal/
+      - docker build -t ghcr.io/datum-cloud/cloud-portal:demo ./submodules/cloud-portal/
+      - kind load docker-image ghcr.io/datum-cloud/staff-portal:demo --name {{.CLUSTER_NAME}}
+      - kind load docker-image ghcr.io/datum-cloud/cloud-portal:demo --name {{.CLUSTER_NAME}}
+      - kubectl apply -k config/demo/portals/
 
   demo:seed:
     desc: Seed demo data

@@ -1,0 +1,20 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: staff-portal
+
+resources:
+  - ../../../../submodules/staff-portal/config/base
+
+images:
+  - name: ghcr.io/datum-cloud/staff-portal
+    newTag: demo
+
+secretGenerator:
+  - name: staff-portal
+    envs:
+      - ../../../../submodules/staff-portal/.env
+
+patches:
+  - path: deployment-patch.yaml
+  - path: http-route-patch.yaml

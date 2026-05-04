@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: staff-portal
+spec:
+  replicas: 1
+  template:
+    spec:
+      containers:
+        - name: staff-portal
+          env:
+            - name: OTEL_LOG_LEVEL
+              value: 'info'
+            - name: OTEL_ENABLED
+              value: 'false'
+            - name: API_URL
+              value: https://staff.localhost:30443
+            - name: APP_URL
+              value: https://staff.localhost:30443
+            - name: SENTRY_DSN
+              value: ''
