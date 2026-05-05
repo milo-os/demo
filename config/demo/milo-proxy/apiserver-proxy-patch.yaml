@@ -1,0 +1,23 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: milo-apiserver
+  namespace: milo-system
+spec:
+  template:
+    spec:
+      containers:
+        - name: milo-apiserver
+          env:
+            - name: PROXY_CLIENT_CERT_FILE
+              value: /etc/kubernetes/pki/proxy/tls.crt
+            - name: PROXY_CLIENT_KEY_FILE
+              value: /etc/kubernetes/pki/proxy/tls.key
+          volumeMounts:
+            - name: proxy-certs
+              mountPath: /etc/kubernetes/pki/proxy
+              readOnly: true
+      volumes:
+        - name: proxy-certs
+          secret:
+            secretName: milo-front-proxy-tls

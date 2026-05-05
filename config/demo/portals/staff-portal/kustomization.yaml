@@ -4,6 +4,7 @@ kind: Kustomization
 namespace: staff-portal
 
 resources:
+  - namespace.yaml
   - ../../../../submodules/staff-portal/config/base
 
 images:

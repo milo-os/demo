@@ -1,0 +1,18 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: milo-front-proxy-tls
+  namespace: milo-system
+spec:
+  secretName: milo-front-proxy-tls
+  duration: 8760h
+  subject:
+    organizationalUnits:
+      - Milo Test Infrastructure
+  commonName: milo-front-proxy
+  usages:
+    - client auth
+  issuerRef:
+    name: milo-ca-issuer
+    kind: Issuer
+    group: cert-manager.io

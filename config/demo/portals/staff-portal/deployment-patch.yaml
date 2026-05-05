@@ -6,16 +6,23 @@ spec:
   replicas: 1
   template:
     spec:
+      hostAliases:
+        - ip: "172.18.0.2"
+          hostnames:
+            - cloud.localhost
       containers:
         - name: staff-portal
+          imagePullPolicy: IfNotPresent
           env:
             - name: OTEL_LOG_LEVEL
               value: 'info'
             - name: OTEL_ENABLED
               value: 'false'
             - name: API_URL
-              value: https://staff.localhost:30443
+              value: https://milo-apiserver.milo-system.svc.cluster.local:6443
             - name: APP_URL
               value: https://staff.localhost:30443
             - name: SENTRY_DSN
-              value: ''
+              value: 'https://nokey@sentry.io/0'
+            - name: NODE_TLS_REJECT_UNAUTHORIZED
+              value: '0'
