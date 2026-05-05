@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: milo-apiserver
+  namespace: milo-system
+spec:
+  template:
+    spec:
+      containers:
+        - name: milo-apiserver
+          env:
+            - name: AUTHENTICATION_CONFIG
+              value: /etc/kubernetes/auth/oidc/auth-config.yaml
+          volumeMounts:
+            - name: oidc-auth-config
+              mountPath: /etc/kubernetes/auth/oidc
+              readOnly: true
+      volumes:
+        - name: oidc-auth-config
+          configMap:
+            name: milo-oidc-auth-config
