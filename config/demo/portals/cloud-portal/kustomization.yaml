@@ -4,6 +4,7 @@ kind: Kustomization
 namespace: cloud-portal
 
 resources:
+  - namespace.yaml
   - ../../../../submodules/cloud-portal/config/base
 
 images:

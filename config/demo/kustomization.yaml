@@ -4,3 +4,4 @@ resources:
   - incidents/
   - support/
   - auth-secrets/
+  - discovery-rbac.yaml

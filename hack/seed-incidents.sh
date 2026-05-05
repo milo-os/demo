@@ -2,8 +2,21 @@
 set -euo pipefail
 echo "Seeding incidents..."
 
-# Seed IncidentSeverity objects first (cluster-scoped)
-kubectl apply -f - <<'EOF'
+MILO_TOKEN="test-admin-token"
+MILO_PORT="16443"
+
+kubectl port-forward -n milo-system svc/milo-apiserver "${MILO_PORT}:6443" &
+PF_PID=$!
+trap "kill ${PF_PID} 2>/dev/null || true" EXIT
+
+for i in $(seq 1 20); do
+  if curl -sk "https://localhost:${MILO_PORT}/healthz" >/dev/null 2>&1; then break; fi
+  sleep 1
+done
+
+KUBECTL_MILO="kubectl --server=https://localhost:${MILO_PORT} --insecure-skip-tls-verify --token=${MILO_TOKEN}"
+
+$KUBECTL_MILO apply --validate=false -f - <<'EOF'
 apiVersion: incidents.operations.miloapis.com/v1alpha1
 kind: IncidentSeverity
 metadata:
@@ -35,8 +48,7 @@ spec:
   order: 3
 EOF
 
-# Seed Incident objects (cluster-scoped)
-kubectl apply -f - <<'EOF'
+$KUBECTL_MILO apply --validate=false -f - <<'EOF'
 apiVersion: incidents.operations.miloapis.com/v1alpha1
 kind: Incident
 metadata:

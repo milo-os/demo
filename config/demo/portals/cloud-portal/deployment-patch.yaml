@@ -6,20 +6,21 @@ spec:
   replicas: 1
   template:
     spec:
+      hostAliases:
+        - ip: "172.18.0.2"
+          hostnames:
+            - cloud.localhost
       containers:
         - name: cloud-portal
+          imagePullPolicy: IfNotPresent
           env:
             - name: OTEL_LOG_LEVEL
               value: 'info'
             - name: OTEL_ENABLED
               value: 'false'
             - name: API_URL
-              value: https://cloud.localhost:30443
+              value: https://milo-apiserver.milo-system.svc.cluster.local:6443
             - name: APP_URL
               value: https://cloud.localhost:30443
-            - name: TELEMETRY_URL
-              value: ''
-            - name: PROMETHEUS_URL
-              value: ''
-            - name: SENTRY_DSN
-              value: ''
+            - name: NODE_TLS_REJECT_UNAUTHORIZED
+              value: '0'
