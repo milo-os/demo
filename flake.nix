@@ -31,6 +31,9 @@
             # Node.js for Playwright verification (verify/ directory)
             nodejs_20
 
+            # Go (needed by Milo's dev:deploy task to install controller-gen)
+            go
+
             # Git (submodule operations)
             git
 

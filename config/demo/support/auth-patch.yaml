@@ -12,6 +12,8 @@ spec:
               value: /etc/milo/kubeconfig
             - name: AUTHORIZATION_KUBECONFIG
               value: /etc/milo/kubeconfig
+            - name: REQUESTHEADER_CLIENT_CA_FILE
+              value: /etc/kubernetes/pki/requestheader/ca.crt
           volumeMounts:
             - name: milo-kubeconfig
               mountPath: /etc/milo
