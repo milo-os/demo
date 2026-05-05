@@ -15,10 +15,13 @@ tasks:
       - task: demo:cluster-up
       - task: demo:install-infra
       - task: demo:deploy-milo
+      - task: demo:setup-proxy-cert
       - task: demo:deploy-auth
+      - task: demo:configure-milo-oidc
       - task: demo:build-images
       - task: demo:load-images
       - task: demo:deploy
+      - task: demo:register-apis
       - task: demo:deploy-portals
       - task: demo:seed
       - task: demo:verify
@@ -27,27 +30,45 @@ tasks:
     desc: Destroy the demo cluster
     cmds:
       - kind delete cluster --name {{.CLUSTER_NAME}}
-      - rm -rf {{.MILO_DIR}}
+      - rm -rf {{.MILO_DIR}} .test-infra
 
   demo:cluster-up:
     desc: Create the kind cluster
     cmds:
       - kind create cluster --name {{.CLUSTER_NAME}} --config hack/kind-config.yaml
-      - mkdir -p .test-infra
-      - kind get kubeconfig --name {{.CLUSTER_NAME}} > {{.KUBECONFIG_FILE}}
 
   demo:install-infra:
-    desc: Install cert-manager, Envoy Gateway, Flux from datum-cloud/test-infra
+    desc: Install Flux, cert-manager, Envoy Gateway via datum-cloud/test-infra
     cmds:
       - |
         set -e
-        # Install cert-manager
-        kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.14.4/cert-manager.yaml
-        kubectl wait --for=condition=Available deployment --all -n cert-manager --timeout=120s
+        REPO_DIR="{{.TASKFILE_DIR}}/.test-infra"
+        WAIT="300s"
 
-        # Install Envoy Gateway
-        kubectl apply -f https://github.com/envoyproxy/gateway/releases/download/v1.0.1/install.yaml
-        kubectl wait --for=condition=Available deployment --all -n envoy-gateway-system --timeout=120s
+        if [ ! -d "${REPO_DIR}/.git" ]; then
+          rm -rf "${REPO_DIR}"
+          echo "Cloning test-infra..."
+          git clone https://github.com/datum-cloud/test-infra.git "${REPO_DIR}"
+        else
+          git -C "${REPO_DIR}" pull origin main --quiet 2>/dev/null || true
+        fi
+
+        kind export kubeconfig --name {{.CLUSTER_NAME}} --kubeconfig "${REPO_DIR}/kubeconfig"
+
+        echo "Installing Flux..."
+        kustomize build "${REPO_DIR}/components/flux" | kubectl apply -f -
+        kubectl -n flux-system wait deployment/{source-controller,helm-controller,kustomize-controller,notification-controller} --for=condition=Available --timeout="${WAIT}"
+        sleep 10
+
+        echo "Installing cert-manager..."
+        kustomize build "${REPO_DIR}/components/cert-manager" | kubectl apply -f -
+        kubectl -n cert-manager wait helmrelease/{cert-manager,cert-manager-csi-driver} --for=condition=Ready --timeout="${WAIT}"
+
+        echo "Installing Envoy Gateway..."
+        kustomize build "${REPO_DIR}/components/envoy-gateway-operator" | kubectl apply -f -
+        kubectl -n flux-system wait helmrelease/envoy-gateway --for=condition=Ready --timeout="${WAIT}"
+        kustomize build "${REPO_DIR}/components/envoy-gateway-operator/gateway-resources" | kubectl apply -f -
+        kubectl wait --for=condition=Programmed gateway/default-gateway -n envoy-gateway-system --timeout="${WAIT}" || true
 
         echo "Infrastructure installed"
 
@@ -71,6 +92,27 @@ tasks:
         TASK_X_REMOTE_TASKFILES=1 task dev:deploy
         echo "Milo deployed"
 
+  demo:setup-proxy-cert:
+    desc: Create static front-proxy cert for Milo aggregator and configure deployment
+    silent: true
+    cmds:
+      - |
+        set -e
+        echo "Creating Milo front-proxy certificate..."
+        kubectl apply -f config/demo/milo-proxy/certificate.yaml
+
+        echo "Waiting for front-proxy cert to be issued..."
+        kubectl wait --for=condition=Ready certificate/milo-front-proxy-tls -n milo-system --timeout=120s
+
+        echo "Patching Milo apiserver to use static proxy cert..."
+        kubectl patch deployment milo-apiserver -n milo-system --type=strategic \
+          -p "$(cat config/demo/milo-proxy/apiserver-proxy-patch.yaml)"
+
+        echo "Waiting for Milo apiserver rollout..."
+        kubectl rollout status deployment/milo-apiserver -n milo-system --timeout=120s
+
+        echo "Front-proxy cert configured and Milo restarted"
+
   demo:deploy-auth:
     desc: Deploy Dex OIDC from support submodule
     cmds:
@@ -93,40 +135,95 @@ tasks:
       - kind load docker-image ghcr.io/datum-cloud/support:dev --name {{.CLUSTER_NAME}}
 
   demo:deploy:
-    desc: Deploy incidents and support services
+    desc: Deploy incidents and support services to kind cluster
     cmds:
-      - kubectl apply -k config/demo/
       - |
-        kubectl wait --for=condition=Available apiservice/v1alpha1.incidents.operations.miloapis.com --timeout=120s || true
-        kubectl wait --for=condition=Available apiservice/v1alpha1.support.miloapis.com --timeout=120s || true
+        kustomize build config/demo/ | \
+          python3 -c "
+        import sys
+        docs = sys.stdin.read().split('\n---\n')
+        filtered = [d for d in docs if 'kind: APIService' not in d]
+        print('\n---\n'.join(filtered))
+        " | kubectl apply -f -
       - echo "Services deployed"
+
+  demo:register-apis:
+    desc: Register incidents and support APIServices with the Milo aggregator
+    silent: true
+    cmds:
+      - |
+        set -e
+        MILO_TOKEN="test-admin-token"
+        MILO_PORT="16443"
+
+        echo "Starting port-forward to milo-apiserver..."
+        kubectl port-forward -n milo-system svc/milo-apiserver "${MILO_PORT}:6443" &
+        PF_PID=$!
+        trap "kill ${PF_PID} 2>/dev/null || true" EXIT
+
+        # Wait for port-forward to be ready
+        for i in $(seq 1 20); do
+          if curl -sk "https://localhost:${MILO_PORT}/healthz" >/dev/null 2>&1; then
+            break
+          fi
+          sleep 1
+        done
+
+        KUBECTL_MILO="kubectl --server=https://localhost:${MILO_PORT} --insecure-skip-tls-verify --token=${MILO_TOKEN}"
+
+        echo "Registering incidents APIService in Milo..."
+        $KUBECTL_MILO apply --validate=false -f - <<'EOF'
+        apiVersion: apiregistration.k8s.io/v1
+        kind: APIService
+        metadata:
+          name: v1alpha1.incidents.operations.miloapis.com
+        spec:
+          service:
+            name: incidents-apiserver
+            namespace: incidents-system
+            port: 443
+          group: incidents.operations.miloapis.com
+          version: v1alpha1
+          insecureSkipTLSVerify: true
+          groupPriorityMinimum: 1000
+          versionPriority: 15
+        EOF
+
+        echo "Registering support APIService in Milo..."
+        $KUBECTL_MILO apply --validate=false -f - <<'EOF'
+        apiVersion: apiregistration.k8s.io/v1
+        kind: APIService
+        metadata:
+          name: v1alpha1.support.miloapis.com
+        spec:
+          service:
+            name: support-apiserver
+            namespace: support-system
+            port: 443
+          group: support.miloapis.com
+          version: v1alpha1
+          insecureSkipTLSVerify: true
+          groupPriorityMinimum: 1000
+          versionPriority: 15
+        EOF
+
+        $KUBECTL_MILO wait \
+          --for=jsonpath='{.status.conditions[?(@.type=="Available")].status}=True' \
+          apiservice/v1alpha1.incidents.operations.miloapis.com --timeout=120s || true
+        $KUBECTL_MILO wait \
+          --for=jsonpath='{.status.conditions[?(@.type=="Available")].status}=True' \
+          apiservice/v1alpha1.support.miloapis.com --timeout=120s || true
+        echo "APIs registered with Milo"
+
+  demo:configure-milo-oidc:
+    desc: Configure Milo OIDC authentication with Dex JWT validation
+    cmds:
+      - bash hack/configure-milo-oidc.sh
 
   demo:configure:
     desc: Write portal .env files for the demo cluster
     cmds:
-      - |
-        cat > submodules/staff-portal/.env <<'ENVEOF'
-NODE_ENV=production
-APP_URL=https://staff.localhost:30443
-API_URL=https://staff.localhost:30443
-AUTH_OIDC_ISSUER=http://dex.auth-system.svc.cluster.local:5556/oidc/v1
-AUTH_OIDC_CLIENT_ID=staff-portal
-AUTH_OIDC_CLIENT_SECRET=demo-secret
-SESSION_SECRET=demo-session-secret-milo-demo-32ch
-CLOUD_PORTAL_URL=https://cloud.localhost:30443
-OTEL_ENABLED=false
-ENVEOF
-      - |
-        cat > submodules/cloud-portal/.env <<'ENVEOF'
-NODE_ENV=production
-APP_URL=https://cloud.localhost:30443
-API_URL=https://cloud.localhost:30443
-AUTH_OIDC_ISSUER=http://dex.auth-system.svc.cluster.local:5556/oidc/v1
-AUTH_OIDC_CLIENT_ID=cloud-portal
-AUTH_OIDC_CLIENT_SECRET=demo-secret
-SESSION_SECRET=demo-session-secret-milo-demo-32ch
-OTEL_ENABLED=false
-ENVEOF
+      - bash hack/configure.sh
 
   demo:deploy-portals:
     desc: Build and deploy staff and cloud portals
@@ -136,11 +233,19 @@ ENVEOF
       - docker build -t ghcr.io/datum-cloud/cloud-portal:demo ./submodules/cloud-portal/
       - kind load docker-image ghcr.io/datum-cloud/staff-portal:demo --name {{.CLUSTER_NAME}}
       - kind load docker-image ghcr.io/datum-cloud/cloud-portal:demo --name {{.CLUSTER_NAME}}
-      - kubectl apply -k config/demo/portals/
+      - |
+        kustomize build --load-restrictor LoadRestrictionsNone config/demo/portals/ | \
+          python3 -c "
+        import sys
+        docs = sys.stdin.read().split('\n---\n')
+        filtered = [d for d in docs if 'kind: ServiceMonitor' not in d]
+        print('\n---\n'.join(filtered))
+        " | kubectl apply -f -
 
   demo:seed:
     desc: Seed demo data
     cmds:
+      - bash hack/seed-milo.sh
       - bash hack/seed-incidents.sh
       - bash hack/seed-support.sh
 
