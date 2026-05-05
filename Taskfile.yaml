@@ -111,6 +111,15 @@ tasks:
         echo "Waiting for Milo apiserver rollout..."
         kubectl rollout status deployment/milo-apiserver -n milo-system --timeout=120s
 
+        echo "Distributing front-proxy CA to aggregated API servers..."
+        CA_CERT=$(kubectl get secret -n milo-system milo-front-proxy-tls \
+          -o jsonpath='{.data.ca\.crt}' | base64 -d)
+        for ns in incidents-system support-system; do
+          kubectl create configmap control-plane-ca -n "$ns" \
+            --from-literal=ca.crt="$CA_CERT" \
+            --dry-run=client -o yaml | kubectl apply -f -
+        done
+
         echo "Front-proxy cert configured and Milo restarted"
 
   demo:deploy-auth:
@@ -253,4 +262,4 @@ tasks:
     desc: Run all verification checks
     cmds:
       - bash hack/verify-kubectl.sh
-      - cd verify && npm ci && npx playwright test
+      - cd verify && npm install && TMPDIR=/tmp npx playwright test

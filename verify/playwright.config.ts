@@ -10,6 +10,7 @@ export default defineConfig({
     ignoreHTTPSErrors: true,
     launchOptions: {
       executablePath: chromiumExecutablePath,
+      args: ['--disable-crashpad', '--no-sandbox', '--disable-dev-shm-usage'],
     },
   },
 });
