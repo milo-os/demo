@@ -34,6 +34,7 @@ HELPSCOUT_BEACON_ID=demo-beacon
 HELPSCOUT_SECRET_KEY=demo-helpscout-key
 OTEL_ENABLED=false
 NODE_TLS_REJECT_UNAUTHORIZED=0
+FRAUD_CHECK_DISABLED=true
 EOF
 
 echo "Portal .env files written"
