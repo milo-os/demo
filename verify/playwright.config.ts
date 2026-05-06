@@ -16,7 +16,8 @@ function findChromium(): string {
 
 export default defineConfig({
   testDir: './tests',
-  reporter: [['list'], ['html', { open: 'never', outputFolder: 'test-results/html' }]],
+  timeout: 120000,
+  reporter: [['list'], ['html', { open: 'never', outputFolder: 'playwright-report' }]],
   use: {
     baseURL: 'https://cloud.localhost:30443',
     ignoreHTTPSErrors: true,
