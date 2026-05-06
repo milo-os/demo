@@ -1,0 +1,54 @@
+name: Demo Verification
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'Taskfile.yaml'
+      - 'hack/**'
+      - 'config/**'
+      - 'verify/**'
+      - 'submodules/**'
+      - 'flake.nix'
+      - 'flake.lock'
+      - '.github/workflows/verify.yml'
+  pull_request:
+    paths:
+      - 'Taskfile.yaml'
+      - 'hack/**'
+      - 'config/**'
+      - 'verify/**'
+      - 'submodules/**'
+      - 'flake.nix'
+      - 'flake.lock'
+      - '.github/workflows/verify.yml'
+
+jobs:
+  verify:
+    name: Boot and verify demo stack
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: DeterminateSystems/nix-installer-action@v13
+      - uses: DeterminateSystems/magic-nix-cache-action@v7
+
+      # demo:up boots the full stack and ends with demo:verify (kubectl + Playwright)
+      - name: Boot demo stack and verify
+        run: nix develop --command task demo:up
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: verify/test-results/
+          retention-days: 14
+
+      - name: Tear down cluster
+        if: always()
+        run: nix develop --command task demo:down
