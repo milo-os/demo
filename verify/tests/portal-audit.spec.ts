@@ -28,7 +28,7 @@ function trackErrors(page: any) {
 
 function bodySnippet(page: any) {
   return page.locator('body').textContent().then((t: string | null) =>
-    (t || '').replace(/\s+/g, ' ').trim().slice(0, 400)
+    (t || '').replace(/\s+/g, ' ').trim().slice(0, 300)
   );
 }
 
@@ -36,28 +36,28 @@ test('staff full navigation audit', async ({ page }) => {
   const errors = trackErrors(page);
   await loginViaDex(page, STAFF_URL, 'alice@datum.net', 'password');
 
-  // Routes discovered from the staff portal route files
   const routes: [string, string][] = [
-    ['Dashboard',          '/'],
-    ['Customers',          '/customers/users'],
-    ['Contacts',           '/contacts'],
-    ['Groups',             '/groups'],
-    ['Email Activity',     '/email-activity'],
-    ['Activity Hub',       '/activity-hub'],
-    ['Fraud & Abuse',      '/fraud'],
-    ['Users',              '/user'],
-    ['Organizations',      '/organization'],
-    ['Projects',           '/project'],
+    ['Dashboard',      '/'],
+    ['Customers',      '/customers/users'],
+    ['Contacts',       '/contacts'],
+    ['Groups',         '/groups'],
+    ['Email Activity', '/email-activity'],
+    ['Fraud & Abuse',  '/fraud'],
+    ['Users',          '/customers/users'],
+    ['Organizations',  '/customers/organizations'],
+    ['Projects',       '/customers/projects'],
+    ['Support',        '/support'],
+    ['Incidents',      '/incidents'],
   ];
 
   const report: string[] = ['=== STAFF PORTAL NAVIGATION AUDIT ==='];
   for (const [label, path] of routes) {
     await page.goto(`${STAFF_URL}${path}`);
-    await page.waitForTimeout(2500);
+    await page.waitForTimeout(2000);
     const body = await bodySnippet(page);
     const hasError = body.includes('Something went wrong') || page.url().includes('error');
     report.push(`[${label}] ${page.url()}${hasError ? ' ⚠ ERROR' : ''}`);
-    if (hasError) report.push(`  body: ${body.slice(0, 200)}`);
+    report.push(`  ${body.slice(0, 200)}`);
   }
 
   report.push('\n=== 4xx ERRORS ===');
@@ -75,24 +75,22 @@ test('cloud full navigation audit', async ({ page }) => {
 
   const report: string[] = ['=== CLOUD PORTAL NAVIGATION AUDIT ==='];
 
-  // Orgs page
-  report.push(`[orgs] ${page.url()}`);
-  report.push(`  body: ${await bodySnippet(page)}`);
+  await page.goto(`${CLOUD_URL}/org/acme-corp`);
+  await page.waitForTimeout(2000);
+  report.push(`[acme-corp] ${page.url()}`);
 
-  // Click org card — cloud portal uses clickable divs/buttons, not just <a>
-  const orgElement = page.locator('[data-discover], a, button').filter({ hasText: /Acme Corp/i }).first();
-  if (await orgElement.isVisible({ timeout: 3000 })) {
-    await orgElement.click();
-    await page.waitForTimeout(3000);
-    report.push(`[acme-corp detail] ${page.url()}`);
-    report.push(`  body: ${await bodySnippet(page)}`);
-  } else {
-    report.push('[acme-corp] org card not clickable — checking URL navigation');
-    // Try direct URL
-    await page.goto(`${CLOUD_URL}/org/acme-corp`);
-    await page.waitForTimeout(3000);
-    report.push(`[/org/acme-corp] ${page.url()}`);
-    report.push(`  body: ${await bodySnippet(page)}`);
+  for (const [label, path] of [
+    ['Projects',   '/org/acme-corp/projects'],
+    ['Team',       '/org/acme-corp/team'],
+    ['Support',    '/org/acme-corp/support'],
+    ['New Ticket', '/org/acme-corp/support/new'],
+  ]) {
+    await page.goto(`${CLOUD_URL}${path}`);
+    await page.waitForTimeout(2000);
+    const body = await bodySnippet(page);
+    const hasError = body.includes('Something went wrong') || page.url().includes('error');
+    report.push(`[${label}] ${page.url()}${hasError ? ' ⚠ ERROR' : ''}`);
+    report.push(`  body: ${body.slice(0, 200)}`);
   }
 
   report.push('\n=== 4xx ERRORS ===');
