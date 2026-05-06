@@ -89,7 +89,19 @@ tasks:
 
         TASK_X_REMOTE_TASKFILES=1 task dev:build --force
         kind load docker-image ghcr.io/datum-cloud/milo:dev --name {{.CLUSTER_NAME}}
-        TASK_X_REMOTE_TASKFILES=1 task dev:deploy
+
+        # dev:deploy may fail on ActivityPolicy resources (activity service not deployed
+        # in the demo stack). All critical steps complete before that point, so tolerate
+        # the failure and re-apply config/services/ with ActivityPolicy filtered out.
+        TASK_X_REMOTE_TASKFILES=1 task dev:deploy || {
+          echo "dev:deploy failed; re-applying config/services/ without ActivityPolicy..."
+          kustomize build config/services/ | \
+            python3 -c "
+          import sys
+          docs = sys.stdin.read().split('\n---\n')
+          print('\n---\n'.join(d for d in docs if 'kind: ActivityPolicy' not in d))
+          " | KUBECONFIG=.milo/kubeconfig kubectl apply -f -
+        }
         echo "Milo deployed"
 
   demo:setup-proxy-cert:
@@ -115,6 +127,7 @@ tasks:
         CA_CERT=$(kubectl get secret -n milo-system milo-front-proxy-tls \
           -o jsonpath='{.data.ca\.crt}' | base64 -d)
         for ns in incidents-system support-system; do
+          kubectl create namespace "$ns" --dry-run=client -o yaml | kubectl apply -f -
           kubectl create configmap control-plane-ca -n "$ns" \
             --from-literal=ca.crt="$CA_CERT" \
             --dry-run=client -o yaml | kubectl apply -f -

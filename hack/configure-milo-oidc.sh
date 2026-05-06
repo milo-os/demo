@@ -25,6 +25,8 @@ jwt:
       url: https://cloud.localhost:30443/oidc/v1
       audiences:
         - cloud-portal
+        - staff-portal
+      audienceMatchPolicy: MatchAny
       certificateAuthority: |
 {indented_ca}
     claimMappings:

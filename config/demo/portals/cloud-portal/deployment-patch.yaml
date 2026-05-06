@@ -24,3 +24,5 @@ spec:
               value: https://cloud.localhost:30443
             - name: NODE_TLS_REJECT_UNAUTHORIZED
               value: '0'
+            - name: FRAUD_CHECK_DISABLED
+              value: 'true'
