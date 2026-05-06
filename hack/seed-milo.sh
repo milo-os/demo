@@ -513,10 +513,10 @@ metadata:
   name: milo-authenticated-user
 rules:
   - apiGroups: ["iam.miloapis.com"]
-    resources: ["users"]
-    verbs: ["get"]
+    resources: ["users", "userinvitations"]
+    verbs: ["get", "list"]
   - apiGroups: ["resourcemanager.miloapis.com"]
-    resources: ["organizationmemberships"]
+    resources: ["organizations", "projects", "organizationmemberships"]
     verbs: ["get", "list"]
   - apiGroups: ["support.miloapis.com"]
     resources: ["supporttickets"]
@@ -545,17 +545,26 @@ metadata:
   name: milo-staff-user
 rules:
   - apiGroups: ["iam.miloapis.com"]
-    resources: ["groupmemberships"]
-    verbs: ["get", "list"]
-  - apiGroups: ["iam.miloapis.com"]
-    resources: ["users"]
+    resources: ["groupmemberships", "groups", "users", "userinvitations", "platforminvitations"]
     verbs: ["get", "list"]
   - apiGroups: ["resourcemanager.miloapis.com"]
-    resources: ["organizations", "projects"]
+    resources: ["organizations", "projects", "organizationmemberships"]
+    verbs: ["get", "list"]
+  - apiGroups: ["notification.miloapis.com"]
+    resources: ["contacts", "contactgroups", "emails", "emailbroadcasts", "emailtemplates"]
+    verbs: ["get", "list"]
+  - apiGroups: ["support.miloapis.com"]
+    resources: ["supporttickets", "supportmessages"]
+    verbs: ["get", "list"]
+  - apiGroups: ["quota.miloapis.com"]
+    resources: ["allowancebuckets", "resourceclaims", "resourcegrants"]
     verbs: ["get", "list"]
   - apiGroups: ["fraud.miloapis.com"]
-    resources: ["fraudevaluations"]
+    resources: ["fraudevaluations", "fraudpolicies"]
     verbs: ["get", "list"]
+  - apiGroups: ["activity.miloapis.com"]
+    resources: ["auditlogqueries"]
+    verbs: ["create"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -646,139 +655,96 @@ spec:
     name: bob
 EOF
 
-# Grant staff users RBAC access to list GroupMemberships in the Milo apiserver.
-# The staff portal calls /groupmemberships?fieldSelector=spec.userRef.name=<username>
-# using the user's own OIDC token, so each user needs explicit list permission.
-$KUBECTL_MILO apply --validate=false -f - <<'EOF'
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: milo-staff-user
-rules:
-  - apiGroups: ["iam.miloapis.com"]
-    resources: ["groupmemberships"]
-    verbs: ["get", "list"]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: milo-staff-user-demo
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: milo-staff-user
-subjects:
-  - kind: User
-    name: demo
-    apiGroup: rbac.authorization.k8s.io
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: milo-staff-user-alice
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: milo-staff-user
-subjects:
-  - kind: User
-    name: alice
-    apiGroup: rbac.authorization.k8s.io
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: milo-staff-user-bob
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: milo-staff-user
-subjects:
-  - kind: User
-    name: bob
-    apiGroup: rbac.authorization.k8s.io
-EOF
-
 # Seed all customer organizations from the demo Dex config
 $KUBECTL_MILO apply --validate=false -f - <<'EOF'
 apiVersion: resourcemanager.miloapis.com/v1alpha1
 kind: Organization
 metadata:
   name: acme-corp
+  annotations:
+    kubernetes.io/display-name: "Acme Corp"
 spec:
-  displayName: Acme Corp
   type: Standard
 ---
 apiVersion: resourcemanager.miloapis.com/v1alpha1
 kind: Organization
 metadata:
   name: brightpath
+  annotations:
+    kubernetes.io/display-name: "Brightpath"
 spec:
-  displayName: Brightpath
   type: Standard
 ---
 apiVersion: resourcemanager.miloapis.com/v1alpha1
 kind: Organization
 metadata:
   name: meridian-tech
+  annotations:
+    kubernetes.io/display-name: "Meridian Tech"
 spec:
-  displayName: Meridian Tech
   type: Standard
 ---
 apiVersion: resourcemanager.miloapis.com/v1alpha1
 kind: Organization
 metadata:
   name: cascade-analytics
+  annotations:
+    kubernetes.io/display-name: "Cascade Analytics"
 spec:
-  displayName: Cascade Analytics
   type: Standard
 ---
 apiVersion: resourcemanager.miloapis.com/v1alpha1
 kind: Organization
 metadata:
   name: vertex-systems
+  annotations:
+    kubernetes.io/display-name: "Vertex Systems"
 spec:
-  displayName: Vertex Systems
   type: Standard
 ---
 apiVersion: resourcemanager.miloapis.com/v1alpha1
 kind: Organization
 metadata:
   name: harbor-cloud
+  annotations:
+    kubernetes.io/display-name: "Harbor Cloud"
 spec:
-  displayName: Harbor Cloud
   type: Standard
 ---
 apiVersion: resourcemanager.miloapis.com/v1alpha1
 kind: Organization
 metadata:
   name: pinnacle
+  annotations:
+    kubernetes.io/display-name: "Pinnacle"
 spec:
-  displayName: Pinnacle
   type: Standard
 ---
 apiVersion: resourcemanager.miloapis.com/v1alpha1
 kind: Organization
 metadata:
   name: ridgeline
+  annotations:
+    kubernetes.io/display-name: "Ridgeline"
 spec:
-  displayName: Ridgeline
   type: Standard
 ---
 apiVersion: resourcemanager.miloapis.com/v1alpha1
 kind: Organization
 metadata:
   name: northstar
+  annotations:
+    kubernetes.io/display-name: "Northstar"
 spec:
-  displayName: Northstar
   type: Standard
 ---
 apiVersion: resourcemanager.miloapis.com/v1alpha1
 kind: Organization
 metadata:
   name: foxhollow
+  annotations:
+    kubernetes.io/display-name: "Foxhollow"
 spec:
-  displayName: Foxhollow
   type: Standard
 EOF
 
