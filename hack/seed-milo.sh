@@ -519,8 +519,8 @@ rules:
     resources: ["organizations", "projects", "organizationmemberships"]
     verbs: ["get", "list"]
   - apiGroups: ["support.miloapis.com"]
-    resources: ["supporttickets"]
-    verbs: ["get", "list", "create"]
+    resources: ["supporttickets", "supportmessages"]
+    verbs: ["get", "list", "create", "update", "patch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -554,8 +554,8 @@ rules:
     resources: ["contacts", "contactgroups", "emails", "emailbroadcasts", "emailtemplates"]
     verbs: ["get", "list"]
   - apiGroups: ["support.miloapis.com"]
-    resources: ["supporttickets", "supportmessages"]
-    verbs: ["get", "list"]
+    resources: ["supporttickets", "supportmessages", "knowledgebaseentries"]
+    verbs: ["get", "list", "create", "update", "patch"]
   - apiGroups: ["quota.miloapis.com"]
     resources: ["allowancebuckets", "resourceclaims", "resourcegrants"]
     verbs: ["get", "list"]
