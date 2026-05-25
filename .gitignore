@@ -2,5 +2,6 @@ submodules/staff-portal/.env
 submodules/cloud-portal/.env
 .milo/
 .test-infra/
-config.bat
 node_modules
+.env
+.env.local
