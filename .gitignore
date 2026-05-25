@@ -2,3 +2,6 @@ submodules/staff-portal/.env
 submodules/cloud-portal/.env
 .milo/
 .test-infra/
+node_modules
+.env
+.env.local
