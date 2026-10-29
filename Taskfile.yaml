@@ -80,7 +80,7 @@ tasks:
         set -e
         if [ ! -d "{{.MILO_DIR}}/.git" ]; then
           echo "Cloning Milo..."
-          git clone https://github.com/datum-cloud/milo.git "{{.MILO_DIR}}"
+          git clone https://github.com/milo-os/milo.git "{{.MILO_DIR}}"
         fi
 
         cd "{{.MILO_DIR}}"
@@ -88,7 +88,7 @@ tasks:
         cp "{{.TASKFILE_DIR}}/{{.KUBECONFIG_FILE}}" .test-infra/kubeconfig
 
         TASK_X_REMOTE_TASKFILES=1 task dev:build --force
-        kind load docker-image ghcr.io/datum-cloud/milo:dev --name {{.CLUSTER_NAME}}
+        kind load docker-image ghcr.io/milo-os/milo:dev --name {{.CLUSTER_NAME}}
 
         # dev:deploy may fail on ActivityPolicy resources (activity service not deployed
         # in the demo stack). All critical steps complete before that point, so tolerate
