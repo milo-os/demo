@@ -3,13 +3,15 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
+    nixpkgs-node.url = "github:NixOS/nixpkgs/nixpkgs-26.05-darwin";
     flake-utils.url = "github:numtide/flake-utils";
   };
 
-  outputs = { self, nixpkgs, flake-utils }:
+  outputs = { self, nixpkgs, nixpkgs-node, flake-utils }:
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
+        nodePkgs = nixpkgs-node.legacyPackages.${system};
       in {
         devShells.default = pkgs.mkShell {
           name = "milo-demo";
@@ -29,7 +31,7 @@
             docker-client
 
             # Node.js for Playwright verification (verify/ directory)
-            nodejs_20
+            nodePkgs.nodejs_26
 
             # Go (needed by Milo's dev:deploy task to install controller-gen)
             go
