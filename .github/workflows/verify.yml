@@ -38,7 +38,7 @@ jobs:
         with:
           submodules: recursive
 
-      - uses: DeterminateSystems/nix-installer-action@v13
+      - uses: DeterminateSystems/nix-installer-action@v23
       - uses: DeterminateSystems/magic-nix-cache-action@v7
 
       # demo:up boots the full stack and ends with demo:verify (kubectl + Playwright)
